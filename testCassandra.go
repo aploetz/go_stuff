@@ -28,13 +28,25 @@ func main() {
     ctx := context.Background()
     // connection established
 
-    // define strKey to read
-    var strClusterName string
-    err2 := session.Query(`SELECT cluster_name FROM system.local`).WithContext(ctx).Scan(&strClusterName)
+    // define columns to read
+    var strClusterName           string
+    var strBroadcastAddress      string
+    var strNativeProtocolVersion string
+    var strReleaseVersion        string
+    var strSchemaVersion         string
+
+    // define query string
+    strCQL := "SELECT cluster_name,broadcast_address,native_protocol_version,release_version,schema_version FROM system.local"
+
+    err2 := session.Query(strCQL).WithContext(ctx).Scan(&strClusterName,&strBroadcastAddress,&strNativeProtocolVersion,&strReleaseVersion,&strSchemaVersion)
     if err2 != nil {
         fmt.Println(err)
     } else {
         fmt.Println("cluster_name:", strClusterName)
+        fmt.Println("broadcast_address:", strBroadcastAddress)
+        fmt.Println("native_protocol_version:", strNativeProtocolVersion)
+        fmt.Println("release_version:", strReleaseVersion)
+        fmt.Println("schema_version:", strSchemaVersion)
     }
 
 }
