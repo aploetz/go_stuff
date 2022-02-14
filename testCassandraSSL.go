@@ -1,10 +1,14 @@
 package main
 
 import (
+    "crypto/tls"
+    "crypto/x509"
     "context"
     "fmt"
+    "io/ioutil"
     "github.com/gocql/gocql"
     "os"
+    "path/filepath"
     "strconv"
     "time"
 )
@@ -19,12 +23,11 @@ func main() {
     username := os.Args[2]
     password := os.Args[3]
 
-    // debug
-    //fmt.Println("args == ",len(os.Args))
+    port,_ = strconv.Atoi(os.Args[4])
 
-    if len(os.Args) > 4 {
-        port,err = strconv.Atoi(os.Args[4])
-    }
+    caPath,_ := filepath.Abs(os.Args[5])
+    certPath,_ := filepath.Abs(os.Args[6])
+    keyPath,_ := filepath.Abs(os.Args[7])
 
     // Cluster connection/session code
     cluster := gocql.NewCluster(hostname)
@@ -36,8 +39,23 @@ func main() {
         Password: password,
     }
 
+    cert, _ := tls.LoadX509KeyPair(certPath, keyPath)
+    caCert, err := ioutil.ReadFile(caPath)
+    caCertPool := x509.NewCertPool()
+    caCertPool.AppendCertsFromPEM(caCert)
+    tlsConfig := &tls.Config{
+        Certificates: []tls.Certificate{cert},
+        RootCAs:      caCertPool,
+    }
+
+    cluster.SslOpts = &gocql.SslOptions{
+        Config:                 tlsConfig,
+        EnableHostVerification: false,
+    }
+
     // force protocol version 4
     cluster.ProtoVersion = 4
+
     session, err := cluster.CreateSession()
     if err != nil {
     	  fmt.Println(err)
@@ -46,25 +64,13 @@ func main() {
     ctx := context.Background()
     // connection established
 
-    // define columns to read
-    var strClusterName           string
-    var strBroadcastAddress      string
-    var strNativeProtocolVersion string
-    var strReleaseVersion        string
-    var strSchemaVersion         string
-
-    // define query string
-    strCQL := "SELECT cluster_name,broadcast_address,native_protocol_version,release_version,schema_version FROM system.local"
-
-    err2 := session.Query(strCQL).WithContext(ctx).Scan(&strClusterName,&strBroadcastAddress,&strNativeProtocolVersion,&strReleaseVersion,&strSchemaVersion)
+    // define strKey to read
+    var strClusterName string
+    err2 := session.Query(`SELECT cluster_name FROM system.local`).WithContext(ctx).Scan(&strClusterName)
     if err2 != nil {
         fmt.Println(err)
     } else {
         fmt.Println("cluster_name:", strClusterName)
-        fmt.Println("broadcast_address:", strBroadcastAddress)
-        fmt.Println("native_protocol_version:", strNativeProtocolVersion)
-        fmt.Println("release_version:", strReleaseVersion)
-        fmt.Println("schema_version:", strSchemaVersion)
     }
 
     // https://stackoverflow.com/questions/17690776/how-to-add-pause-to-a-go-program
