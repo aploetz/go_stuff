@@ -1,10 +1,14 @@
 package main
 
 import (
+    "crypto/tls"
+    "crypto/x509"
     "context"
     "fmt"
+    "io/ioutil"
     "github.com/gocql/gocql"
     "os"
+    "path/filepath"
     "strconv"
     "time"
 )
@@ -19,12 +23,11 @@ func main() {
     username := os.Args[2]
     password := os.Args[3]
 
-    // debug
-    //fmt.Println("args == ",len(os.Args))
+    port,_ = strconv.Atoi(os.Args[4])
 
-    if len(os.Args) > 4 {
-        port,err = strconv.Atoi(os.Args[4])
-    }
+    caPath,_ := filepath.Abs(os.Args[5])
+    certPath,_ := filepath.Abs(os.Args[6])
+    keyPath,_ := filepath.Abs(os.Args[7])
 
     // Cluster connection/session code
     cluster := gocql.NewCluster(hostname)
@@ -36,8 +39,23 @@ func main() {
         Password: password,
     }
 
+    cert, _ := tls.LoadX509KeyPair(certPath, keyPath)
+    caCert, err := ioutil.ReadFile(caPath)
+    caCertPool := x509.NewCertPool()
+    caCertPool.AppendCertsFromPEM(caCert)
+    tlsConfig := &tls.Config{
+        Certificates: []tls.Certificate{cert},
+        RootCAs:      caCertPool,
+    }
+
+    cluster.SslOpts = &gocql.SslOptions{
+        Config:                 tlsConfig,
+        EnableHostVerification: false,
+    }
+
     // force protocol version 4
     cluster.ProtoVersion = 4
+
     session, err := cluster.CreateSession()
     if err != nil {
     	  fmt.Println(err)
